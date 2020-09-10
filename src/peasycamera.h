@@ -21,7 +21,19 @@ namespace peasycamera {
       float m_distance;
    };
 
+   template <typename T>
+   struct Interpolator {
+      float timeInSeconds = 0.0f;
+      float timeConsumedInSeconds = 0.0f;
+      T startValue = { };
+      T endValue = { };
+   };
+
    struct Camera {
+      Interpolator<float> m_distanceInterpolator;
+      Interpolator<vec3> m_lookAtInterpolator;
+      Interpolator<quat> m_rotationInterpolator;
+
       DampedAction m_panX;
       DampedAction m_panY;
       DampedAction m_zoom;
@@ -43,7 +55,7 @@ namespace peasycamera {
 
       void CalculateViewMatrix();
       void Update(bool shiftKeyDown, bool leftMouseButtonDown, bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta,
-                  int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight);
+                  int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight, float deltaTimeInSeconds);
 
       void Pan(float dx, float dy);
    };

@@ -305,7 +305,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
 
       const Int2 sz = Win32GetClientAreaSize(state.window);
 
-      camera.Update(state.keyboard.shiftDown, state.mouse.lmbDown, state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta, 0, 0, sz.x, sz.y);
+      camera.Update(state.keyboard.shiftDown, state.mouse.lmbDown, state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta, 0, 0, sz.x, sz.y, deltaTime);
       camera.CalculateViewMatrix();
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};

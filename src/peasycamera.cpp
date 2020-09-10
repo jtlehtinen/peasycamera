@@ -27,6 +27,13 @@ namespace peasycamera {
          };
       }
 
+      quat operator *(float a, const quat& b) { return {a * b.x, a * b.y, a * b.z, a * b.w}; }
+
+      quat Normalize(const quat& a) {
+         float inv = 1.0f / sqrtf(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w);
+         return inv * a;
+      }
+
       vec3 ApplyRotation(const quat& rotation, const vec3& vector) {
          const float x = vector.x;
          const float y = vector.y;
@@ -49,6 +56,43 @@ namespace peasycamera {
          const float coeff = sinf(half_angle) / len;
 
          return {coeff * axis.x, coeff * axis.y, coeff * axis.z, cosf(half_angle)};
+      }
+
+      quat SLerp(const quat& a, const quat& b, float t) {
+         const float a0 = a.x;
+         const float a1 = a.y;
+         const float a2 = a.z;
+         const float a3 = a.w;
+
+         float b0 = b.x;
+         float b1 = b.y;
+         float b2 = b.z;
+         float b3 = b.w;
+
+         float cos_theta = a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3;
+
+         if (cos_theta < 0.0f) {
+            b0 = -b0;
+            b1 = -b1;
+            b2 = -b2;
+            b3 = -b3;
+            cos_theta = -cos_theta;
+         }
+
+         float theta = acosf(cos_theta);
+         float sinTheta = sqrtf(1.0f - cos_theta * cos_theta);
+
+         float w1, w2;
+         if (sinTheta > 0.001f) {
+            w1 = sinf((1.0f - t) * theta) / sinTheta;
+            w2 = sinf(t * theta) / sinTheta;
+         } else {
+            w1 = 1.0f - t;
+            w2 = t;
+         }
+
+         quat result = {w1 * a0 + w2 * b0, w1 * a1 + w2 * b1, w1 * a2 + w2 * b2, w1 * a3 + w2 * b3};
+         return Normalize(result);
       }
 
       void LookAtMatrix(const vec3& position, const vec3& lookAt, const vec3& up, float* outViewMatrix4x4) {
@@ -90,6 +134,11 @@ namespace peasycamera {
          outViewMatrix4x4[14] = M[2] * T[12] + M[6] * T[13] + M[10] * T[14] + M[14] * T[15];
          outViewMatrix4x4[15] = M[3] * T[12] + M[7] * T[13] + M[11] * T[14] + M[15] * T[15];
       }
+
+      float Linear(float a, float b, float t) { return a + t * (b - a); }
+      vec3 Linear(const vec3& a, const vec3& b, float t) { return a + t * (b - a); }
+      float Smooth(float a, float b, float t) { return a + t * t * (3.0f - 2.0f * t) * (b - a); }
+      vec3 Smooth(const vec3& a, const vec3& b, float t) { return {Smooth(a.x, b.x, t), Smooth(a.y, b.y, t), Smooth(a.z, b.z, t)}; }
 
       void AddMouseWheelZoomImpulse(DampedAction& zoom, float zoomScale, int mouseWheelDelta) {
          zoom.m_velocity += zoomScale * float(mouseWheelDelta);
@@ -204,6 +253,40 @@ namespace peasycamera {
          camera.m_state.m_rotation = ApplyRotate(camera.m_rotateY, YAxis, camera.m_state.m_rotation);
          camera.m_state.m_rotation = ApplyRotate(camera.m_rotateZ, ZAxis, camera.m_state.m_rotation);
       }
+
+      template <typename InterpolatorType, typename ValueType>
+      void StartInterpolation(InterpolatorType& interpolator, const ValueType& startValue, const ValueType& endValue, float timeInSeconds) {
+         interpolator.timeInSeconds = timeInSeconds;
+         interpolator.timeConsumedInSeconds = 0.0f;
+         interpolator.startValue = startValue;
+         interpolator.endValue = endValue;
+      }
+
+      float UpdateInterpolation(Interpolator<float>& interpolator, float deltaTimeInSeconds) {
+         interpolator.timeConsumedInSeconds += deltaTimeInSeconds;
+         const float t = interpolator.timeConsumedInSeconds / interpolator.timeInSeconds;
+
+         return t <= 0.99f ? Smooth(interpolator.startValue, interpolator.endValue, t) : interpolator.endValue;
+      }
+
+      vec3 UpdateInterpolation(Interpolator<vec3>& interpolator, float deltaTimeInSeconds) {
+         interpolator.timeConsumedInSeconds += deltaTimeInSeconds;
+         const float t = interpolator.timeConsumedInSeconds / interpolator.timeInSeconds;
+
+         return t <= 0.99f ? Smooth(interpolator.startValue, interpolator.endValue, t) : interpolator.endValue;
+      }
+
+      quat UpdateInterpolation(Interpolator<quat>& interpolator, float deltaTimeInSeconds) {
+         interpolator.timeConsumedInSeconds += deltaTimeInSeconds;
+         const float t = interpolator.timeConsumedInSeconds / interpolator.timeInSeconds;
+
+         return t <= 0.99f ? SLerp(interpolator.startValue, interpolator.endValue, t) : interpolator.endValue;
+      }
+
+      template <typename InterpolatorType>
+      bool InterpolationActive(const InterpolatorType& interpolator) {
+         return (interpolator.timeInSeconds > 0.0f) && (interpolator.timeConsumedInSeconds / interpolator.timeInSeconds <= 0.99f);
+      }
    }
 
    Camera::Camera(float distance, float lookAtX, float lookAtY, float lookAtZ) { 
@@ -219,7 +302,7 @@ namespace peasycamera {
    }
 
    void Camera::Update(bool shiftKeyDown, bool leftMouseButtonDown, bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta,
-                       int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight) {
+                       int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight, float deltaTimeInSeconds) {
       if (shiftKeyDown) {
          const int dx = mouseDX;
          const int dy = mouseDY;
@@ -250,6 +333,18 @@ namespace peasycamera {
       ApplyZoomToCamera(*this);
       ApplyPanToCamera(*this);
       ApplyRotateToCamera(*this);
+
+      if (InterpolationActive(m_distanceInterpolator)) {
+         m_state.m_distance = Clamp(UpdateInterpolation(m_distanceInterpolator, deltaTimeInSeconds), m_minDistance, m_maxDistance);
+      }
+
+      if (InterpolationActive(m_lookAtInterpolator)) {
+         m_state.m_lookAt = UpdateInterpolation(m_lookAtInterpolator, deltaTimeInSeconds);
+      }
+
+      if (InterpolationActive(m_rotationInterpolator)) {
+         m_state.m_rotation = UpdateInterpolation(m_rotationInterpolator, deltaTimeInSeconds);
+      }
    }
 
    void Camera::Pan(float dx, float dy) {
