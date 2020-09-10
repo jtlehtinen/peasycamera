@@ -5,6 +5,16 @@
 #include <assert.h>
 #include <stdint.h>
 
+struct Int2 {
+   int x, y;
+};
+
+Int2 Win32GetClientAreaSize(HWND window) {
+   RECT r;
+   GetClientRect(window, &r);
+   return {r.right - r.left, r.bottom - r.top};
+}
+
 void Win32ToggleFullscreen(HWND window, WINDOWPLACEMENT& placement) {
    // Thanks Raymond Chen: https://blogs.msdn.microsoft.com/oldnewthing/20100412-00/?p=14353
    DWORD winStyle = GetWindowLong(window, GWL_STYLE);
@@ -146,6 +156,9 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
    while (Win32MessagePump(window, wp)) {
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
       glClearBufferfv(GL_COLOR, 0, clearColor);
+
+      const Int2 sz = Win32GetClientAreaSize(window);
+      glViewport(0, 0, sz.x, sz.y);
 
       SwapBuffers(dc);
    }
