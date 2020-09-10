@@ -296,7 +296,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
 
-      camera.Update(state.mouse.rmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta);
+      camera.Update(state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta);
       camera.CalculateViewMatrix();
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};

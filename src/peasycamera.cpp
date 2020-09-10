@@ -71,12 +71,17 @@ namespace peasycamera {
          outViewMatrix4x4[15] = M[3] * T[12] + M[7] * T[13] + M[11] * T[14] + M[15] * T[15];
       }
 
-      void AddMouseWheelZoomImpulse(DampedAction& action, float zoomScale, int mouseWheelDelta) {
-         action.m_velocity += zoomScale * float(mouseWheelDelta);
+      void AddMouseWheelZoomImpulse(DampedAction& zoom, float zoomScale, int mouseWheelDelta) {
+         zoom.m_velocity += zoomScale * float(mouseWheelDelta);
       }
 
-      void AddMouseMoveZoomImpulse(DampedAction& action, int mouseDY) {
-         action.m_velocity += float(-mouseDY) / 10.0f;
+      void AddMouseMoveZoomImpulse(DampedAction& zoom, int mouseDY) {
+         zoom.m_velocity += float(-mouseDY) / 10.0f;
+      }
+
+      void AddMouseMovePanImpulse(DampedAction& panX, DampedAction& panY, int dx, int dy) {
+         panX.m_velocity += float(dx) / 8.0f;
+         panY.m_velocity += float(dy) / 8.0f;
       }
 
       void ApplyZoomToCamera(Camera& camera) {
@@ -97,6 +102,36 @@ namespace peasycamera {
          }
       }
 
+      void ApplyPanToCamera(Camera& camera) {
+         auto MousePan = [](Camera& camera, float dx, float dy) {
+            // @TODO: Make the pan scale dependent on the viewport size.
+            const float panScale = camera.m_distance * 0.0025f;
+            camera.Pan(-panScale * dx, panScale * dy);
+         };
+
+         DampedAction& panX = camera.m_panX;
+         DampedAction& panY = camera.m_panY;
+
+         if (panX.m_velocity != 0.0f) {
+            MousePan(camera, panX.m_velocity, 0.0f);
+
+            panX.m_velocity *= (1.0f - panX.m_friction);
+
+            if (fabsf(panX.m_velocity) < 0.001f) {
+               panX.m_velocity = 0.0f;
+            }
+         }
+
+         if (panY.m_velocity != 0.0f) {
+            MousePan(camera, 0.0f, panY.m_velocity);
+
+            panY.m_velocity *= (1.0f - panY.m_friction);
+
+            if (fabsf(panY.m_velocity) < 0.001f) {
+               panY.m_velocity = 0.0f;
+            }
+         }
+      }
    }
 
    Camera::Camera(float distance, float lookAtX, float lookAtY, float lookAtZ) : m_distance(distance), m_lookAt({lookAtX, lookAtY, lookAtZ}), m_rotation(kIdentityRotation) { }
@@ -107,7 +142,7 @@ namespace peasycamera {
       LookAtMatrix(position, m_lookAt, up, m_viewMatrix);
    }
 
-   void Camera::Update(bool rightMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta) {
+   void Camera::Update(bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta) {
       if (mouseWheelDelta != 0) {
          AddMouseWheelZoomImpulse(m_zoom, m_wheelZoomScale, mouseWheelDelta);
       }
@@ -116,7 +151,15 @@ namespace peasycamera {
          AddMouseMoveZoomImpulse(m_zoom, mouseDY);
       }
 
+      if (middleMouseButtonDown) {
+         AddMouseMovePanImpulse(m_panX, m_panY, mouseDX, mouseDY);
+      }
+
       ApplyZoomToCamera(*this);
+      ApplyPanToCamera(*this);
    }
 
+   void Camera::Pan(float dx, float dy) {
+      m_lookAt = m_lookAt + ApplyRotation(m_rotation, vec3 {dx, dy, 0.0f});
+   }
 }
