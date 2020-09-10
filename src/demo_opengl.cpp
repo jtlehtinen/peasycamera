@@ -1,4 +1,7 @@
+#pragma comment(lib, "opengl32.lib")
+
 #include <Windows.h>
+#include "gl3w.h"
 #include <assert.h>
 
 LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -18,16 +21,48 @@ LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wparam, LPARA
    return result;
 }
 
-int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int showCode) {
+HWND Win32CreateWindow(const char* windowTitle, int width, int height) {
    WNDCLASSA wc = { };
    wc.style = CS_OWNDC;
-   wc.hInstance = instance;
+   wc.hInstance = GetModuleHandleA(nullptr);
    wc.lpfnWndProc = Win32WindowProc;
    wc.lpszClassName = "Class";
    RegisterClassA(&wc);
 
-   HWND window = CreateWindowExA(0, wc.lpszClassName, "peasycamera demo", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, nullptr, nullptr, instance, nullptr);
+   HWND window = CreateWindowExA(0, wc.lpszClassName, "peasycamera demo", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
+
+   return window;
+}
+
+HGLRC Win32CreateGLContext(HDC dc) {
+   PIXELFORMATDESCRIPTOR pfd = { };
+   pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+   pfd.dwFlags = PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
+   pfd.iPixelType = PFD_TYPE_RGBA;
+   pfd.cColorBits = 24;
+   pfd.cAlphaBits = 8;
+
+   int pixelFormatIndex = ChoosePixelFormat(dc, &pfd);
+   DescribePixelFormat(dc, pixelFormatIndex, sizeof(pfd), &pfd);
+   SetPixelFormat(dc, pixelFormatIndex, &pfd);
+
+   HGLRC ctx = wglCreateContext(dc);
+
+   return ctx;
+}
+
+int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int showCode) {
+   HWND window = Win32CreateWindow("peasycamera demo", 1280, 720);
    assert(window);
+
+   HDC dc = GetDC(window);
+   assert(dc);
+
+   HGLRC ctx = Win32CreateGLContext(dc);
+   assert(ctx);
+
+   wglMakeCurrent(dc, ctx);
+   gl3wInit();
 
    MSG msg = { };
    for (;;) {
@@ -39,7 +74,10 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
          TranslateMessage(&msg);
          DispatchMessageA(&msg);
       } else {
-         // @TODO: render...
+         glClearColor(0.0f, 0.3f, 0.5f, 1.0f);
+         glClear(GL_COLOR_BUFFER_BIT);
+
+         SwapBuffers(dc);
       }
    }
 
