@@ -3,6 +3,23 @@
 #include <Windows.h>
 #include "gl3w.h"
 #include <assert.h>
+#include <stdint.h>
+
+void Win32ToggleFullscreen(HWND window, WINDOWPLACEMENT& placement) {
+   // Thanks Raymond Chen: https://blogs.msdn.microsoft.com/oldnewthing/20100412-00/?p=14353
+   DWORD winStyle = GetWindowLong(window, GWL_STYLE);
+   if (winStyle & WS_OVERLAPPEDWINDOW) {
+      MONITORINFO monitorInfo = {sizeof(MONITORINFO)};
+      if (GetWindowPlacement(window, &placement) && GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &monitorInfo)) {
+         SetWindowLong(window, GWL_STYLE, winStyle & ~WS_OVERLAPPEDWINDOW);
+         SetWindowPos(window, HWND_TOP, monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top, monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+      }
+   } else {
+      SetWindowLong(window, GWL_STYLE, winStyle | WS_OVERLAPPEDWINDOW);
+      SetWindowPlacement(window, &placement);
+      SetWindowPos(window, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+   }
+}
 
 LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
    LRESULT result = 0;
@@ -57,7 +74,47 @@ HGLRC Win32CreateGLContext(HDC dc) {
    return ctx;
 }
 
+bool Win32MessagePump(HWND window, WINDOWPLACEMENT& wp) {
+   bool ok = true;
+
+   MSG msg = { };
+   while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
+      switch (msg.message) {
+         case WM_SYSKEYDOWN:
+         case WM_KEYDOWN:
+         case WM_SYSKEYUP:
+         case WM_KEYUP: {
+            const uint32_t vkCode = uint32_t(msg.wParam);
+            const bool wasDown = ((msg.lParam & (1 << 30)) != 0);
+            const bool isDown = ((msg.lParam & (1 << 31)) == 0);
+            const bool altDown = (msg.lParam & (1 << 29)) != 0;
+
+            if (isDown != wasDown) {
+               if (isDown && altDown && vkCode == VK_RETURN) {
+                  Win32ToggleFullscreen(window, wp);
+               }
+            }
+            break;
+         }
+
+         case WM_QUIT:
+            ok = false;
+            break;
+
+         default:
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+            break;
+      }
+   }
+
+   return ok;
+}
+
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int showCode) {
+   WINDOWPLACEMENT wp = { };
+   wp.length = sizeof(wp);
+
    HWND window = Win32CreateWindow("peasycamera demo", 1280, 720);
    assert(window);
 
@@ -78,21 +135,11 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
    glGetIntegerv(GL_MINOR_VERSION, &minorVersion);
    assert((majorVersion >= 4 && minorVersion >= 5) || majorVersion > 4);
 
-   MSG msg = { };
-   for (;;) {
-      if (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
-         if (msg.message == WM_QUIT) {
-            break;
-         }
+   while (Win32MessagePump(window, wp)) {
+      const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
+      glClearBufferfv(GL_COLOR, 0, clearColor);
 
-         TranslateMessage(&msg);
-         DispatchMessageA(&msg);
-      } else {
-         glClearColor(0.0f, 0.3f, 0.5f, 1.0f);
-         glClear(GL_COLOR_BUFFER_BIT);
-
-         SwapBuffers(dc);
-      }
+      SwapBuffers(dc);
    }
 
    return 0;
