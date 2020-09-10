@@ -17,9 +17,10 @@ namespace peasycamera {
       float m_viewMatrix[16];
 
       DampedAction m_zoom;
+      float m_wheelZoomScale = 1.0f;
 
       float m_minDistance = 1.0f;
-      float m_maxDistance = 1000.0f;
+      float m_maxDistance = 500.0f;
 
       quat m_rotation;
       vec3 m_lookAt;
@@ -28,7 +29,7 @@ namespace peasycamera {
       Camera(float distance, float lookAtX = 0.0f, float lookAtY = 0.0f, float lookAtZ = 0.0f);
 
       void CalculateViewMatrix();
-      void Update(int mouseWheelDelta);
+      void Update(bool rightMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta);
    };
 
 }

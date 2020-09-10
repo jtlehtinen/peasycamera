@@ -71,8 +71,12 @@ namespace peasycamera {
          outViewMatrix4x4[15] = M[3] * T[12] + M[7] * T[13] + M[11] * T[14] + M[15] * T[15];
       }
 
-      void AddMouseWheelZoomImpulse(DampedAction& action, int mouseWheelDelta) {
-         action.m_velocity += float(mouseWheelDelta) / 10.0f;
+      void AddMouseWheelZoomImpulse(DampedAction& action, float zoomScale, int mouseWheelDelta) {
+         action.m_velocity += zoomScale * float(mouseWheelDelta);
+      }
+
+      void AddMouseMoveZoomImpulse(DampedAction& action, int mouseDY) {
+         action.m_velocity += float(-mouseDY) / 10.0f;
       }
 
       void ApplyZoomToCamera(Camera& camera) {
@@ -103,9 +107,13 @@ namespace peasycamera {
       LookAtMatrix(position, m_lookAt, up, m_viewMatrix);
    }
 
-   void Camera::Update(int mouseWheelDelta) {
+   void Camera::Update(bool rightMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta) {
       if (mouseWheelDelta != 0) {
-         AddMouseWheelZoomImpulse(m_zoom, mouseWheelDelta);
+         AddMouseWheelZoomImpulse(m_zoom, m_wheelZoomScale, mouseWheelDelta);
+      }
+
+      if (rightMouseButtonDown) {
+         AddMouseMoveZoomImpulse(m_zoom, mouseDY);
       }
 
       ApplyZoomToCamera(*this);
