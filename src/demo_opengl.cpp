@@ -29,7 +29,11 @@ HWND Win32CreateWindow(const char* windowTitle, int width, int height) {
    wc.lpszClassName = "Class";
    RegisterClassA(&wc);
 
-   HWND window = CreateWindowExA(0, wc.lpszClassName, "peasycamera demo", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
+   RECT wr = {0, 0, width, height};
+   constexpr DWORD windowStyle = WS_OVERLAPPEDWINDOW;
+   AdjustWindowRect(&wr, windowStyle, FALSE);
+
+   HWND window = CreateWindowExA(0, wc.lpszClassName, "peasycamera demo", windowStyle, CW_USEDEFAULT, CW_USEDEFAULT, wr.right - wr.left, wr.bottom - wr.top, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
 
    return window;
 }
@@ -63,6 +67,8 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
 
    wglMakeCurrent(dc, ctx);
    gl3wInit();
+
+   ShowWindow(window, showCode);
 
    MSG msg = { };
    for (;;) {
