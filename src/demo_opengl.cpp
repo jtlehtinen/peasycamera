@@ -4,6 +4,7 @@
 #include "gl3w.h"
 #include <assert.h>
 #include <stdint.h>
+#include <DirectXMath.h> // @TODO: temporary include to make progress
 
 struct Int2 {
    int x, y;
@@ -132,9 +133,15 @@ bool Win32MessagePump(HWND window, WINDOWPLACEMENT& wp) {
 const char* vertexShaderSource = R"(
 #version 450 core
 
+uniform mat4 u_transform;
+
+vec3 cube_vertex(int vertex_id) {
+   int b = 1 << vertex_id;
+   return vec3(float((0x287a & b) != 0), float((0x02af & b) != 0), float((0x31e3 & b) != 0)) - vec3(0.5);
+}
+
 void main() {
-   const vec2 positions[] = {{0.0, 0.0}, {0.5, 0.0}, {0.0, 0.5}};
-   gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+   gl_Position = u_transform * vec4(cube_vertex(gl_VertexID), 1.0);
 }
 )";
 
@@ -206,17 +213,36 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
    uint32_t vao = 0;
    glCreateVertexArrays(1, &vao);
 
+   glEnable(GL_DEPTH_TEST);
+
+   float angle = 0.0f;
+
    while (Win32MessagePump(window, wp)) {
+      angle += 0.01f;
+
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
       glClearBufferfv(GL_COLOR, 0, clearColor);
+
+      const float one = 1.0f;
+      glClearBufferfv(GL_DEPTH, 0, &one);
 
       const Int2 sz = Win32GetClientAreaSize(window);
       glViewport(0, 0, sz.x, sz.y);
 
+      DirectX::XMMATRIX localToWorldMatrix = DirectX::XMMatrixRotationAxis({0.0f, 1.0f, 0.0f}, angle);
+      DirectX::XMMATRIX worldToViewMatrix = DirectX::XMMatrixLookAtRH({2.0f, 2.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+      DirectX::XMMATRIX viewToProjectionMatrix = DirectX::XMMatrixPerspectiveFovRH(0.8f, float(sz.x) / float(sz.y), 0.1f, 100.0f);
+      DirectX::XMMATRIX localToProjectionMatrix = localToWorldMatrix * worldToViewMatrix * viewToProjectionMatrix;
+
+      DirectX::XMFLOAT4X4 uploadProjectionFromLocalMatrix;
+      DirectX::XMStoreFloat4x4(&uploadProjectionFromLocalMatrix, localToProjectionMatrix);
 
       glUseProgram(program);
+
+      glUniformMatrix4fv(glGetUniformLocation(program, "u_transform"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadProjectionFromLocalMatrix));
+
       glBindVertexArray(vao);
-      glDrawArrays(GL_TRIANGLES, 0, 3);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
       glBindVertexArray(0);
       glUseProgram(0);
 
