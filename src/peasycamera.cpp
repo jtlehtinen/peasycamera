@@ -15,6 +15,8 @@ namespace peasycamera {
       float Length(const vec3& a) { return sqrtf(a.x * a.x + a.y * a.y + a.z * a.z); }
       vec3 Normalize(const vec3& a) { return (1.0f / Length(a)) * a; }
 
+      float Clamp(float value, float min, float max) { return value < min ? min : value > max ? max : value; }
+
       vec3 ApplyRotation(const quat& rotation, const vec3& vector) {
          const float x = vector.x;
          const float y = vector.y;
@@ -68,6 +70,29 @@ namespace peasycamera {
          outViewMatrix4x4[14] = M[2] * T[12] + M[6] * T[13] + M[10] * T[14] + M[14] * T[15];
          outViewMatrix4x4[15] = M[3] * T[12] + M[7] * T[13] + M[11] * T[14] + M[15] * T[15];
       }
+
+      void AddMouseWheelZoomImpulse(DampedAction& action, int mouseWheelDelta) {
+         action.m_velocity += float(mouseWheelDelta) / 10.0f;
+      }
+
+      void ApplyZoomToCamera(Camera& camera) {
+         if (camera.m_zoom.m_velocity == 0.0f) {
+            return;
+         }
+
+         const float newDistance = camera.m_distance + camera.m_zoom.m_velocity * camera.m_distance * 0.02f;
+
+         if (newDistance < camera.m_minDistance || newDistance > camera.m_maxDistance) {
+            camera.m_zoom.m_velocity = 0.0f;
+         }
+         camera.m_distance = Clamp(newDistance, camera.m_minDistance, camera.m_maxDistance);
+
+         camera.m_zoom.m_velocity *= (1.0f - camera.m_zoom.m_friction);
+         if (fabsf(camera.m_zoom.m_velocity) < 0.001f) {
+            camera.m_zoom.m_velocity = 0.0f;
+         }
+      }
+
    }
 
    Camera::Camera(float distance, float lookAtX, float lookAtY, float lookAtZ) : m_distance(distance), m_lookAt({lookAtX, lookAtY, lookAtZ}), m_rotation(kIdentityRotation) { }
@@ -76,6 +101,14 @@ namespace peasycamera {
       vec3 position = m_distance * ApplyRotation(m_rotation, ZAxis) + m_lookAt;
       vec3 up = ApplyRotation(m_rotation, YAxis);
       LookAtMatrix(position, m_lookAt, up, m_viewMatrix);
+   }
+
+   void Camera::Update(int mouseWheelDelta) {
+      if (mouseWheelDelta != 0) {
+         AddMouseWheelZoomImpulse(m_zoom, mouseWheelDelta);
+      }
+
+      ApplyZoomToCamera(*this);
    }
 
 }

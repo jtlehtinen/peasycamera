@@ -12,6 +12,23 @@ struct Int2 {
    int x, y;
 };
 
+struct Mouse {
+   int x;
+   int y;
+   int dx;
+   int dy;
+   int wheelDelta;
+};
+
+struct Win32State {
+   WINDOWPLACEMENT windowPlacement;
+   HWND window;
+   HDC dc;
+   HGLRC ctx;
+
+   Mouse mouse;
+};
+
 Int2 Win32GetClientAreaSize(HWND window) {
    RECT r;
    GetClientRect(window, &r);
@@ -43,6 +60,7 @@ LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wparam, LPARA
          PostQuitMessage(0);
          break;
 
+      case WM_MOUSEWHEEL:
       case WM_SYSKEYDOWN:
       case WM_KEYDOWN:
       case WM_SYSKEYUP:
@@ -95,12 +113,17 @@ HGLRC Win32CreateGLContext(HDC dc) {
    return ctx;
 }
 
-bool Win32MessagePump(HWND window, WINDOWPLACEMENT& wp) {
-   bool ok = true;
+bool Win32MessagePump(Win32State& state) {
+   state.mouse.wheelDelta = 0;
+   state.mouse.dx = 0;
+   state.mouse.dy = 0;
 
    MSG msg = { };
    while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
       switch (msg.message) {
+         case WM_QUIT:
+            return false;
+
          case WM_SYSKEYDOWN:
          case WM_KEYDOWN:
          case WM_SYSKEYUP:
@@ -112,15 +135,16 @@ bool Win32MessagePump(HWND window, WINDOWPLACEMENT& wp) {
 
             if (isDown != wasDown) {
                if (isDown && altDown && vkCode == VK_RETURN) {
-                  Win32ToggleFullscreen(window, wp);
+                  Win32ToggleFullscreen(state.window, state.windowPlacement);
                }
             }
             break;
          }
 
-         case WM_QUIT:
-            ok = false;
+         case WM_MOUSEWHEEL: {
+            state.mouse.wheelDelta += GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA;
             break;
+         }
 
          default:
             TranslateMessage(&msg);
@@ -129,7 +153,7 @@ bool Win32MessagePump(HWND window, WINDOWPLACEMENT& wp) {
       }
    }
 
-   return ok;
+   return true;
 }
 
 int64_t Win32GetPerfCounter() {
@@ -208,22 +232,22 @@ uint32_t CreateShaderProgram(uint32_t vertexShader, uint32_t fragmentShader) {
 }
 
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int showCode) {
-   WINDOWPLACEMENT wp = { };
-   wp.length = sizeof(wp);
+   Win32State state = { };
+   state.windowPlacement.length = sizeof(WINDOWPLACEMENT);
 
-   HWND window = Win32CreateWindow("peasycamera demo", 1280, 720);
-   assert(window);
+   state.window = Win32CreateWindow("peasycamera demo", 1280, 720);
+   assert(state.window);
 
-   HDC dc = GetDC(window);
-   assert(dc);
+   state.dc = GetDC(state.window);
+   assert(state.dc);
 
-   HGLRC ctx = Win32CreateGLContext(dc);
-   assert(ctx);
+   state.ctx = Win32CreateGLContext(state.dc);
+   assert(state.ctx);
 
-   wglMakeCurrent(dc, ctx);
+   wglMakeCurrent(state.dc, state.ctx);
    gl3wInit();
 
-   ShowWindow(window, showCode);
+   ShowWindow(state.window, showCode);
 
    int majorVersion = 0;
    int minorVersion = 0;
@@ -247,11 +271,12 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
    const int64_t counterFrequency = Win32GetPerfFrequency();
    int64_t lastCounter = Win32GetPerfCounter();
 
-   while (Win32MessagePump(window, wp)) {
+   while (Win32MessagePump(state)) {
       const int64_t currentCounter = Win32GetPerfCounter();
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
 
+      camera.Update(state.mouse.wheelDelta);
       camera.CalculateViewMatrix();
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
@@ -260,12 +285,12 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       const float one = 1.0f;
       glClearBufferfv(GL_DEPTH, 0, &one);
 
-      const Int2 sz = Win32GetClientAreaSize(window);
+      const Int2 sz = Win32GetClientAreaSize(state.window);
       glViewport(0, 0, sz.x, sz.y);
 
       static float angle = 0.0f;
       angle += DirectX::XM_PI * deltaTime;
-      DirectX::XMMATRIX localToWorldMatrix = DirectX::XMMatrixRotationAxis({0.0f, 1.0f, 0.0f}, angle);
+      DirectX::XMMATRIX localToWorldMatrix = DirectX::XMMatrixIdentity();
       DirectX::XMMATRIX viewToProjectionMatrix = DirectX::XMMatrixPerspectiveFovRH(0.8f, float(sz.x) / float(sz.y), 0.1f, 100.0f);
 
       DirectX::XMFLOAT4X4 uploadLocalToWorldMatrix;
@@ -285,7 +310,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       glBindVertexArray(0);
       glUseProgram(0);
 
-      SwapBuffers(dc);
+      SwapBuffers(state.dc);
    }
 
    return 0;
