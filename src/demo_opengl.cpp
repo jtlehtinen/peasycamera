@@ -130,6 +130,18 @@ bool Win32MessagePump(HWND window, WINDOWPLACEMENT& wp) {
    return ok;
 }
 
+int64_t Win32GetPerfCounter() {
+   LARGE_INTEGER li;
+   QueryPerformanceCounter(&li);
+   return li.QuadPart;
+}
+
+int64_t Win32GetPerfFrequency() {
+   LARGE_INTEGER li;
+   QueryPerformanceFrequency(&li);
+   return li.QuadPart;
+}
+
 const char* vertexShaderSource = R"(
 #version 450 core
 
@@ -215,10 +227,13 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
 
    glEnable(GL_DEPTH_TEST);
 
-   float angle = 0.0f;
+   const int64_t counterFrequency = Win32GetPerfFrequency();
+   int64_t lastCounter = Win32GetPerfCounter();
 
    while (Win32MessagePump(window, wp)) {
-      angle += 0.01f;
+      const int64_t currentCounter = Win32GetPerfCounter();
+      float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
+      lastCounter = currentCounter;
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
       glClearBufferfv(GL_COLOR, 0, clearColor);
@@ -229,6 +244,8 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       const Int2 sz = Win32GetClientAreaSize(window);
       glViewport(0, 0, sz.x, sz.y);
 
+      static float angle = 0.0f;
+      angle += DirectX::XM_PI * deltaTime;
       DirectX::XMMATRIX localToWorldMatrix = DirectX::XMMatrixRotationAxis({0.0f, 1.0f, 0.0f}, angle);
       DirectX::XMMATRIX worldToViewMatrix = DirectX::XMMatrixLookAtRH({2.0f, 2.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
       DirectX::XMMATRIX viewToProjectionMatrix = DirectX::XMMatrixPerspectiveFovRH(0.8f, float(sz.x) / float(sz.y), 0.1f, 100.0f);
