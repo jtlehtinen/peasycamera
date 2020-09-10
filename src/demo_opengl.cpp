@@ -303,7 +303,9 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
 
-      camera.Update(state.keyboard.shiftDown, state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta);
+      const Int2 sz = Win32GetClientAreaSize(state.window);
+
+      camera.Update(state.keyboard.shiftDown, state.mouse.lmbDown, state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta, 0, 0, sz.x, sz.y);
       camera.CalculateViewMatrix();
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
@@ -311,8 +313,6 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
 
       const float one = 1.0f;
       glClearBufferfv(GL_DEPTH, 0, &one);
-
-      const Int2 sz = Win32GetClientAreaSize(state.window);
       glViewport(0, 0, sz.x, sz.y);
 
       static float angle = 0.0f;
