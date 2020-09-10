@@ -129,6 +129,50 @@ bool Win32MessagePump(HWND window, WINDOWPLACEMENT& wp) {
    return ok;
 }
 
+const char* vertexShaderSource = R"(
+#version 450 core
+
+void main() {
+   const vec2 positions[] = {{0.0, 0.0}, {0.5, 0.0}, {0.0, 0.5}};
+   gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+}
+)";
+
+const char* fragmentShaderSource = R"(
+#version 450 core
+
+out vec4 o_color;
+
+void main() {
+   o_color = vec4(1.0, 0.0, 0.0, 1.0);
+}
+)";
+
+uint32_t CreateShader(const char* source, uint32_t shaderType) {
+   uint32_t result = glCreateShader(shaderType);
+   glShaderSource(result, 1, &source, nullptr);
+   glCompileShader(result);
+
+   int status = 0;
+   glGetShaderiv(result, GL_COMPILE_STATUS, &status);
+   assert(status == GL_TRUE);
+
+   return result;
+}
+
+uint32_t CreateShaderProgram(uint32_t vertexShader, uint32_t fragmentShader) {
+   uint32_t result = glCreateProgram();
+   glAttachShader(result, vertexShader);
+   glAttachShader(result, fragmentShader);
+   glLinkProgram(result);
+
+   int status = 0;
+   glGetProgramiv(result, GL_LINK_STATUS, &status);
+   assert(status == GL_TRUE);
+
+   return result;
+}
+
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int showCode) {
    WINDOWPLACEMENT wp = { };
    wp.length = sizeof(wp);
@@ -153,12 +197,28 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
    glGetIntegerv(GL_MINOR_VERSION, &minorVersion);
    assert((majorVersion >= 4 && minorVersion >= 5) || majorVersion > 4);
 
+   const uint32_t vs = CreateShader(vertexShaderSource, GL_VERTEX_SHADER);
+   const uint32_t fs = CreateShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+   const uint32_t program = CreateShaderProgram(vs, fs);
+   glDeleteShader(vs);
+   glDeleteShader(fs);
+
+   uint32_t vao = 0;
+   glCreateVertexArrays(1, &vao);
+
    while (Win32MessagePump(window, wp)) {
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
       glClearBufferfv(GL_COLOR, 0, clearColor);
 
       const Int2 sz = Win32GetClientAreaSize(window);
       glViewport(0, 0, sz.x, sz.y);
+
+
+      glUseProgram(program);
+      glBindVertexArray(vao);
+      glDrawArrays(GL_TRIANGLES, 0, 3);
+      glBindVertexArray(0);
+      glUseProgram(0);
 
       SwapBuffers(dc);
    }
