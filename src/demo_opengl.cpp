@@ -3,10 +3,10 @@
 #include "peasycamera.h"
 
 #include <Windows.h>
+#include <DirectXMath.h>
 #include "gl3w.h"
 #include <assert.h>
 #include <stdint.h>
-#include <DirectXMath.h> // @TODO: temporary include to make progress
 
 struct Int2 {
    int x, y;
@@ -151,7 +151,9 @@ out VS_OUT {
    vec3 color;
 } vout;
 
-uniform mat4 u_transform;
+uniform mat4 u_world_from_local_matrix;
+uniform mat4 u_view_from_world_matrix;
+uniform mat4 u_projection_from_view_matrix;
 
 vec3 cube_vertex(int vertex_id) {
    int b = 1 << vertex_id;
@@ -160,7 +162,7 @@ vec3 cube_vertex(int vertex_id) {
 
 void main() {
    vec3 position = cube_vertex(gl_VertexID);
-   gl_Position = u_transform * vec4(position, 1.0);
+   gl_Position = u_projection_from_view_matrix * u_view_from_world_matrix * u_world_from_local_matrix * vec4(position, 1.0);
 
    vout.color = position + vec3(0.5);
 }
@@ -240,6 +242,8 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
 
    glEnable(GL_DEPTH_TEST);
 
+   peasycamera::Camera camera(5.0f);
+
    const int64_t counterFrequency = Win32GetPerfFrequency();
    int64_t lastCounter = Win32GetPerfCounter();
 
@@ -247,6 +251,8 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       const int64_t currentCounter = Win32GetPerfCounter();
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
+
+      camera.CalculateViewMatrix();
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
       glClearBufferfv(GL_COLOR, 0, clearColor);
@@ -260,16 +266,19 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       static float angle = 0.0f;
       angle += DirectX::XM_PI * deltaTime;
       DirectX::XMMATRIX localToWorldMatrix = DirectX::XMMatrixRotationAxis({0.0f, 1.0f, 0.0f}, angle);
-      DirectX::XMMATRIX worldToViewMatrix = DirectX::XMMatrixLookAtRH({2.0f, 2.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
       DirectX::XMMATRIX viewToProjectionMatrix = DirectX::XMMatrixPerspectiveFovRH(0.8f, float(sz.x) / float(sz.y), 0.1f, 100.0f);
-      DirectX::XMMATRIX localToProjectionMatrix = localToWorldMatrix * worldToViewMatrix * viewToProjectionMatrix;
 
-      DirectX::XMFLOAT4X4 uploadProjectionFromLocalMatrix;
-      DirectX::XMStoreFloat4x4(&uploadProjectionFromLocalMatrix, localToProjectionMatrix);
+      DirectX::XMFLOAT4X4 uploadLocalToWorldMatrix;
+      DirectX::XMFLOAT4X4 uploadViewToProjectionMatrix;
+
+      DirectX::XMStoreFloat4x4(&uploadLocalToWorldMatrix, localToWorldMatrix);
+      DirectX::XMStoreFloat4x4(&uploadViewToProjectionMatrix, viewToProjectionMatrix);
 
       glUseProgram(program);
 
-      glUniformMatrix4fv(glGetUniformLocation(program, "u_transform"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadProjectionFromLocalMatrix));
+      glUniformMatrix4fv(glGetUniformLocation(program, "u_world_from_local_matrix"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadLocalToWorldMatrix));
+      glUniformMatrix4fv(glGetUniformLocation(program, "u_view_from_world_matrix"), 1, GL_FALSE, camera.m_viewMatrix);
+      glUniformMatrix4fv(glGetUniformLocation(program, "u_projection_from_view_matrix"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadViewToProjectionMatrix));
 
       glBindVertexArray(vao);
       glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
