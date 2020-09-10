@@ -145,6 +145,10 @@ int64_t Win32GetPerfFrequency() {
 const char* vertexShaderSource = R"(
 #version 450 core
 
+out VS_OUT {
+   vec3 color;
+} vout;
+
 uniform mat4 u_transform;
 
 vec3 cube_vertex(int vertex_id) {
@@ -153,17 +157,24 @@ vec3 cube_vertex(int vertex_id) {
 }
 
 void main() {
-   gl_Position = u_transform * vec4(cube_vertex(gl_VertexID), 1.0);
+   vec3 position = cube_vertex(gl_VertexID);
+   gl_Position = u_transform * vec4(position, 1.0);
+
+   vout.color = position + vec3(0.5);
 }
 )";
 
 const char* fragmentShaderSource = R"(
 #version 450 core
 
+in VS_OUT {
+   vec3 color;
+} fin;
+
 out vec4 o_color;
 
 void main() {
-   o_color = vec4(1.0, 0.0, 0.0, 1.0);
+   o_color = vec4(fin.color, 1.0);
 }
 )";
 
