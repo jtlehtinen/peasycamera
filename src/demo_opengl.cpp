@@ -72,6 +72,12 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
 
    ShowWindow(window, showCode);
 
+   int majorVersion = 0;
+   int minorVersion = 0;
+   glGetIntegerv(GL_MAJOR_VERSION, &majorVersion);
+   glGetIntegerv(GL_MINOR_VERSION, &minorVersion);
+   assert((majorVersion >= 4 && minorVersion >= 5) || majorVersion > 4);
+
    MSG msg = { };
    for (;;) {
       if (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
