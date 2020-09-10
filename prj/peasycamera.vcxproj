@@ -20,6 +20,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\demo_opengl.cpp" />
+    <ClCompile Include="..\src\gl3w.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\gl3w.h" />
+    <ClInclude Include="..\src\glcorearb.h" />
+    <ClInclude Include="..\src\khrplatform.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
