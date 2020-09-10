@@ -1,5 +1,7 @@
 #pragma comment(lib, "opengl32.lib")
 
+#include "peasycamera.h"
+
 #include <Windows.h>
 #include "gl3w.h"
 #include <assert.h>

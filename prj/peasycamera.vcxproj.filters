@@ -3,10 +3,12 @@
   <ItemGroup>
     <ClCompile Include="..\src\demo_opengl.cpp" />
     <ClCompile Include="..\src\gl3w.c" />
+    <ClCompile Include="..\src\peasycamera.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\gl3w.h" />
     <ClInclude Include="..\src\glcorearb.h" />
     <ClInclude Include="..\src\khrplatform.h" />
+    <ClInclude Include="..\src\peasycamera.h" />
   </ItemGroup>
 </Project>
