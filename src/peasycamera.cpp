@@ -350,4 +350,12 @@ namespace peasycamera {
    void Camera::Pan(float dx, float dy) {
       m_state.m_lookAt = m_state.m_lookAt + ApplyRotation(m_state.m_rotation, vec3 {dx, dy, 0.0f});
    }
+
+   void Camera::SetDistance(float distance, float animationTimeInSeconds) {
+      if (animationTimeInSeconds <= 0.0f) {
+         m_state.m_distance = distance;
+      } else {
+         StartInterpolation(m_distanceInterpolator, m_state.m_distance, distance, animationTimeInSeconds);
+      }
+   }
 }

@@ -58,6 +58,9 @@ namespace peasycamera {
                   int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight, float deltaTimeInSeconds);
 
       void Pan(float dx, float dy);
+
+      float GetDistance() const { return m_state.m_distance; }
+      void SetDistance(float distance, float animationTimeInSeconds = 0.0f);
    };
 
 }

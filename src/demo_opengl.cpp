@@ -303,6 +303,13 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
 
+      static bool wasDown = false;
+      bool isDown = (GetKeyState(VK_SPACE) & (1 << 15)) != 0;
+      if (isDown != wasDown) {
+         camera.SetDistance(50.0f, 0.5f);
+         wasDown = isDown;
+      }
+
       const Int2 sz = Win32GetClientAreaSize(state.window);
 
       camera.Update(state.keyboard.shiftDown, state.mouse.lmbDown, state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta, 0, 0, sz.x, sz.y, deltaTime);
