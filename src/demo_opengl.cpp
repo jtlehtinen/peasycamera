@@ -25,6 +25,10 @@ struct Mouse {
    bool rmbDown;
 };
 
+struct Keyboard {
+   bool shiftDown;
+};
+
 struct Win32State {
    WINDOWPLACEMENT windowPlacement;
    HWND window;
@@ -32,6 +36,7 @@ struct Win32State {
    HGLRC ctx;
 
    Mouse mouse;
+   Keyboard keyboard;
 };
 
 Int2 Win32GetClientAreaSize(HWND window) {
@@ -126,6 +131,8 @@ bool Win32MessagePump(Win32State& state) {
    state.mouse.lmbDown = (GetKeyState(VK_LBUTTON) & (1 << 15)) != 0;
    state.mouse.mmbDown = (GetKeyState(VK_MBUTTON) & (1 << 15)) != 0;
    state.mouse.rmbDown = (GetKeyState(VK_RBUTTON) & (1 << 15)) != 0;
+   
+   state.keyboard.shiftDown = ((GetKeyState(VK_LSHIFT) & (1 << 15)) != 0) || ((GetKeyState(VK_RSHIFT) & (1 << 15)) != 0);
 
    MSG msg = { };
    while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -296,7 +303,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
 
-      camera.Update(state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta);
+      camera.Update(state.keyboard.shiftDown, state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta);
       camera.CalculateViewMatrix();
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};

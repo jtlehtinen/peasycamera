@@ -13,6 +13,8 @@ namespace peasycamera {
       float m_friction = kDefaultFriction;
    };
 
+   enum class Constraint { None, Yaw, Pitch };
+
    struct Camera {
       float m_viewMatrix[16];
 
@@ -28,10 +30,13 @@ namespace peasycamera {
       vec3 m_lookAt;
       float m_distance;
 
+      Constraint m_dragConstraint = Constraint::None;
+
+
       Camera(float distance, float lookAtX = 0.0f, float lookAtY = 0.0f, float lookAtZ = 0.0f);
 
       void CalculateViewMatrix();
-      void Update(bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta);
+      void Update(bool shiftKeyDown, bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta);
 
       void Pan(float dx, float dy);
    };

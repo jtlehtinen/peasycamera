@@ -106,7 +106,9 @@ namespace peasycamera {
          auto MousePan = [](Camera& camera, float dx, float dy) {
             // @TODO: Make the pan scale dependent on the viewport size.
             const float panScale = camera.m_distance * 0.0025f;
-            camera.Pan(-panScale * dx, panScale * dy);
+            dx = (camera.m_dragConstraint == Constraint::Pitch ? 0.0f : -panScale * dx);
+            dy = (camera.m_dragConstraint == Constraint::Yaw ? 0.0f : panScale * dy);
+            camera.Pan(dx, dy);
          };
 
          DampedAction& panX = camera.m_panX;
@@ -142,7 +144,18 @@ namespace peasycamera {
       LookAtMatrix(position, m_lookAt, up, m_viewMatrix);
    }
 
-   void Camera::Update(bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta) {
+   void Camera::Update(bool shiftKeyDown, bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta) {
+      if (shiftKeyDown) {
+         const int dx = mouseDX;
+         const int dy = mouseDY;
+
+         if (m_dragConstraint == Constraint::None && abs(mouseDX - mouseDY) > 1) {
+            m_dragConstraint = (abs(dx) > abs(dy) ? Constraint::Yaw : Constraint::Pitch);
+         }
+      } else {
+         m_dragConstraint = Constraint::None;
+      }
+      
       if (mouseWheelDelta != 0) {
          AddMouseWheelZoomImpulse(m_zoom, m_wheelZoomScale, mouseWheelDelta);
       }
