@@ -23,7 +23,6 @@
     <ClCompile Include="..\src\gl3w.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\DirectXMath.h" />
     <ClInclude Include="..\src\gl3w.h" />
     <ClInclude Include="..\src\glcorearb.h" />
     <ClInclude Include="..\src\khrplatform.h" />

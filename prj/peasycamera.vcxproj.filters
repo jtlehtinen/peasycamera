@@ -8,6 +8,5 @@
     <ClInclude Include="..\src\gl3w.h" />
     <ClInclude Include="..\src\glcorearb.h" />
     <ClInclude Include="..\src\khrplatform.h" />
-    <ClInclude Include="..\src\DirectXMath.h" />
   </ItemGroup>
 </Project>
