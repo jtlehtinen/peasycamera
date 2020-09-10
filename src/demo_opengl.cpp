@@ -30,6 +30,14 @@ LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wparam, LPARA
          PostQuitMessage(0);
          break;
 
+      case WM_SYSKEYDOWN:
+      case WM_KEYDOWN:
+      case WM_SYSKEYUP:
+      case WM_KEYUP: {
+         assert(!"Nondispatched message ended up here. Windows? Why?");
+         break;
+      }
+
       default:
          result = DefWindowProcA(window, message, wparam, lparam);
          break;
