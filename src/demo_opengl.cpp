@@ -13,20 +13,39 @@ struct Int2 {
    int x, y;
 };
 
+struct DigitalButton {
+   bool m_down;
+   bool m_press;
+   bool m_release;
+
+   void Update(bool down) {
+      m_press = false;
+      m_release = false;
+
+      if (m_down != down) {
+         m_press = down;
+         m_release = !down;
+         m_down = down;
+      }
+   }
+};
+
 struct Mouse {
-   int x;
-   int y;
-   int dx;
-   int dy;
+   Int2 position;
+   Int2 positionDelta;
    int wheelDelta;
 
-   bool lmbDown;
-   bool mmbDown;
-   bool rmbDown;
+   DigitalButton lmb;
+   DigitalButton mmb;
+   DigitalButton rmb;
 };
 
 struct Keyboard {
-   bool shiftDown;
+   DigitalButton shift;
+   DigitalButton q;
+   DigitalButton w;
+   DigitalButton e;
+   DigitalButton r;
 };
 
 struct Win32State {
@@ -126,13 +145,16 @@ HGLRC Win32CreateGLContext(HDC dc) {
 
 bool Win32MessagePump(Win32State& state) {
    state.mouse.wheelDelta = 0;
-   state.mouse.dx = 0;
-   state.mouse.dy = 0;
-   state.mouse.lmbDown = (GetKeyState(VK_LBUTTON) & (1 << 15)) != 0;
-   state.mouse.mmbDown = (GetKeyState(VK_MBUTTON) & (1 << 15)) != 0;
-   state.mouse.rmbDown = (GetKeyState(VK_RBUTTON) & (1 << 15)) != 0;
+   state.mouse.positionDelta = { };
+   state.mouse.lmb.Update((GetKeyState(VK_LBUTTON) & (1 << 15)) != 0);
+   state.mouse.mmb.Update((GetKeyState(VK_MBUTTON) & (1 << 15)) != 0);
+   state.mouse.rmb.Update((GetKeyState(VK_RBUTTON) & (1 << 15)) != 0);
    
-   state.keyboard.shiftDown = ((GetKeyState(VK_LSHIFT) & (1 << 15)) != 0) || ((GetKeyState(VK_RSHIFT) & (1 << 15)) != 0);
+   state.keyboard.shift.Update(((GetKeyState(VK_LSHIFT) & (1 << 15)) != 0) || ((GetKeyState(VK_RSHIFT) & (1 << 15)) != 0));
+   state.keyboard.q.Update((GetKeyState('Q') & (1 << 15)) != 0);
+   state.keyboard.w.Update((GetKeyState('W') & (1 << 15)) != 0);
+   state.keyboard.e.Update((GetKeyState('E') & (1 << 15)) != 0);
+   state.keyboard.r.Update((GetKeyState('R') & (1 << 15)) != 0);
 
    MSG msg = { };
    while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -166,10 +188,9 @@ bool Win32MessagePump(Win32State& state) {
             const int x = GET_X_LPARAM(msg.lParam);
             const int y = GET_Y_LPARAM(msg.lParam);
 
-            state.mouse.dx += x - state.mouse.x;
-            state.mouse.dy += y - state.mouse.y;
-            state.mouse.x = x;
-            state.mouse.y = y;
+            state.mouse.positionDelta.x += x - state.mouse.position.x;
+            state.mouse.positionDelta.y += y - state.mouse.position.y;
+            state.mouse.position = {x, y};
             break;
          }
 
@@ -303,16 +324,41 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
 
-      static bool wasDown = false;
-      bool isDown = (GetKeyState(VK_SPACE) & (1 << 15)) != 0;
-      if (isDown != wasDown) {
-         camera.SetDistance(50.0f, 0.5f);
-         wasDown = isDown;
+      if (state.keyboard.q.m_down) {
+         camera.RotateX(deltaTime * 2.0f);
+      }
+
+      if (state.keyboard.w.m_down) {
+         camera.RotateY(deltaTime * 2.0f);
+      }
+
+      if (state.keyboard.e.m_down) {
+         camera.RotateZ(deltaTime * 2.0f);
+      }
+
+      if (state.keyboard.r.m_press) {
+         camera.Reset(0.5f);
       }
 
       const Int2 sz = Win32GetClientAreaSize(state.window);
 
-      camera.Update(state.keyboard.shiftDown, state.mouse.lmbDown, state.mouse.rmbDown, state.mouse.mmbDown, state.mouse.x, state.mouse.y, state.mouse.dx, state.mouse.dy, state.mouse.wheelDelta, 0, 0, sz.x, sz.y, deltaTime);
+      peasycamera::Input input = { };
+      input.shiftKeyDown = state.keyboard.shift.m_down;
+      input.leftMouseButtonDown = state.mouse.lmb.m_down;
+      input.middleMouseButtonDown = state.mouse.mmb.m_down;
+      input.rightMouseButtonDown = state.mouse.rmb.m_down;
+      input.mouseX = state.mouse.position.x;
+      input.mouseY = state.mouse.position.y;
+      input.mouseDX = state.mouse.positionDelta.x;
+      input.mouseDY = state.mouse.positionDelta.y;
+      input.mouseWheelDelta = state.mouse.wheelDelta;
+      input.viewport[0] = 0;
+      input.viewport[1] = 0;
+      input.viewport[2] = sz.x;
+      input.viewport[3] = sz.y;
+      input.deltaTimeInSeconds = deltaTime;
+
+      camera.Update(input);
       camera.CalculateViewMatrix();
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};

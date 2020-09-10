@@ -293,6 +293,8 @@ namespace peasycamera {
       m_state.m_distance = distance;
       m_state.m_lookAt = {lookAtX, lookAtY, lookAtZ};
       m_state.m_rotation = kIdentityRotation;
+
+      m_resetState = m_state;
    }
 
    void Camera::CalculateViewMatrix() {
@@ -301,33 +303,34 @@ namespace peasycamera {
       LookAtMatrix(position, m_state.m_lookAt, up, m_viewMatrix);
    }
 
-   void Camera::Update(bool shiftKeyDown, bool leftMouseButtonDown, bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta,
-                       int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight, float deltaTimeInSeconds) {
-      if (shiftKeyDown) {
-         const int dx = mouseDX;
-         const int dy = mouseDY;
+   void Camera::Update(const Input& input) {
+      if (input.shiftKeyDown) {
+         const int dx = input.mouseDX;
+         const int dy = input.mouseDY;
 
-         if (m_dragConstraint == Constraint::None && abs(mouseDX - mouseDY) > 1) {
+         if (m_dragConstraint == Constraint::None && abs(input.mouseDX - input.mouseDY) > 1) {
             m_dragConstraint = (abs(dx) > abs(dy) ? Constraint::Yaw : Constraint::Pitch);
          }
+      } else if (m_permaConstraint != Constraint::None) {
+         m_dragConstraint = m_permaConstraint;
       } else {
          m_dragConstraint = Constraint::None;
       }
       
-      if (mouseWheelDelta != 0) {
-         AddMouseWheelZoomImpulse(m_zoom, m_wheelZoomScale, mouseWheelDelta);
+      if (input.mouseWheelDelta != 0) {
+         AddMouseWheelZoomImpulse(m_zoom, m_wheelZoomScale, input.mouseWheelDelta);
       }
 
-      if (rightMouseButtonDown) {
-         AddMouseMoveZoomImpulse(m_zoom, mouseDY);
+      if (input.rightMouseButtonDown) {
+         AddMouseMoveZoomImpulse(m_zoom, input.mouseDY);
       }
 
-      if (middleMouseButtonDown) {
-         AddMouseMovePanImpulse(m_panX, m_panY, mouseDX, mouseDY);
+      if (input.middleMouseButtonDown) {
+         AddMouseMovePanImpulse(m_panX, m_panY, input.mouseDX, input.mouseDY);
       }
 
-      if (leftMouseButtonDown) {
-         AddMouseMoveRotateImpulse(m_rotateX, m_rotateY, m_rotateZ, m_dragConstraint, m_state.m_distance, mouseX, mouseY, mouseDX, mouseDY, viewportLeft, viewportTop, viewportWidth, viewportHeight);
+      if (input.leftMouseButtonDown) {
+         AddMouseMoveRotateImpulse(m_rotateX, m_rotateY, m_rotateZ, m_dragConstraint, m_state.m_distance, input.mouseX, input.mouseY, input.mouseDX, input.mouseDY, input.viewport[0], input.viewport[1], input.viewport[2], input.viewport[3]);
       }
 
       ApplyZoomToCamera(*this);
@@ -335,20 +338,27 @@ namespace peasycamera {
       ApplyRotateToCamera(*this);
 
       if (InterpolationActive(m_distanceInterpolator)) {
-         m_state.m_distance = Clamp(UpdateInterpolation(m_distanceInterpolator, deltaTimeInSeconds), m_minDistance, m_maxDistance);
+         m_state.m_distance = Clamp(UpdateInterpolation(m_distanceInterpolator, input.deltaTimeInSeconds), m_minDistance, m_maxDistance);
       }
 
       if (InterpolationActive(m_lookAtInterpolator)) {
-         m_state.m_lookAt = UpdateInterpolation(m_lookAtInterpolator, deltaTimeInSeconds);
+         m_state.m_lookAt = UpdateInterpolation(m_lookAtInterpolator, input.deltaTimeInSeconds);
       }
 
       if (InterpolationActive(m_rotationInterpolator)) {
-         m_state.m_rotation = UpdateInterpolation(m_rotationInterpolator, deltaTimeInSeconds);
+         m_state.m_rotation = UpdateInterpolation(m_rotationInterpolator, input.deltaTimeInSeconds);
       }
    }
 
    void Camera::Pan(float dx, float dy) {
       m_state.m_lookAt = m_state.m_lookAt + ApplyRotation(m_state.m_rotation, vec3 {dx, dy, 0.0f});
+   }
+
+   void Camera::GetPosition(float* outX, float* outY, float* outZ) const {
+      const vec3 position = m_state.m_distance * ApplyRotation(m_state.m_rotation, ZAxis) + m_state.m_lookAt;
+      *outX = position.x;
+      *outY = position.y;
+      *outZ = position.z;
    }
 
    void Camera::SetDistance(float distance, float animationTimeInSeconds) {
@@ -357,5 +367,74 @@ namespace peasycamera {
       } else {
          StartInterpolation(m_distanceInterpolator, m_state.m_distance, distance, animationTimeInSeconds);
       }
+   }
+
+   void Camera::SetLookAt(float x, float y, float z, float animationTimeInSeconds) {
+      if (animationTimeInSeconds <= 0.0f) {
+         m_state.m_lookAt = {x, y, z};
+      } else {
+         StartInterpolation(m_lookAtInterpolator, m_state.m_lookAt, vec3 {x, y, z}, animationTimeInSeconds);
+      }
+   }
+
+   void Camera::SetState(const CameraState& state, float animationTimeInSeconds) {
+      if (animationTimeInSeconds <= 0.0f) {
+         m_state = state;
+      } else {
+         StartInterpolation(m_rotationInterpolator, m_state.m_rotation, state.m_rotation, animationTimeInSeconds);
+         StartInterpolation(m_lookAtInterpolator, m_state.m_lookAt, state.m_lookAt, animationTimeInSeconds);
+         StartInterpolation(m_distanceInterpolator, m_state.m_distance, state.m_distance, animationTimeInSeconds);
+      }
+   }
+
+   void Camera::Reset(float animationTimeInSeconds) {
+      SetState(m_resetState, animationTimeInSeconds);
+   }
+
+   void Camera::SetFreeRotationMode() {
+      m_permaConstraint = Constraint::None;
+   }
+
+   void Camera::SetYawRotationMode() {
+      m_permaConstraint = Constraint::Yaw;
+   }
+
+   void Camera::SetPitchRotationMode() {
+      m_permaConstraint = Constraint::Pitch;
+   }
+
+   void Camera::SetRollRotationMode() {
+      m_permaConstraint = Constraint::Roll;
+   }
+
+   void Camera::SetSuppressRollRotationMode() {
+      m_permaConstraint = Constraint::SuppressRoll;
+   }
+
+   void Camera::RotateX(float radians) {
+      m_state.m_rotation = m_state.m_rotation * QuatFromAxisAndAngle(XAxis, radians);
+   }
+
+   void Camera::RotateY(float radians) {
+      m_state.m_rotation = m_state.m_rotation * QuatFromAxisAndAngle(YAxis, radians);
+   }
+
+   void Camera::RotateZ(float radians) {
+      m_state.m_rotation = m_state.m_rotation * QuatFromAxisAndAngle(ZAxis, radians);
+   }
+
+   void Camera::SetRotations(float rx, float ry, float rz) {
+      m_rotationInterpolator.timeInSeconds = 0.0f;
+
+      const quat r1 = QuatFromAxisAndAngle(XAxis, rx);
+      const quat r2 = QuatFromAxisAndAngle(YAxis, ry);
+      const quat r3 = QuatFromAxisAndAngle(ZAxis, rz);
+      const quat composed = r1 * r2 * r3;
+      m_state.m_rotation = composed;
+   }
+
+   void Camera::GetRotations(float* outRX, float* outRY, float* outRZ) const {
+      // @TODO:
+      assert(!"do this shit");
    }
 }

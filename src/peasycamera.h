@@ -29,6 +29,21 @@ namespace peasycamera {
       T endValue = { };
    };
 
+   struct Input {
+      int viewport[4];
+      int mouseX;
+      int mouseY;
+      int mouseDX;
+      int mouseDY;
+      int mouseWheelDelta;
+      float deltaTimeInSeconds;
+
+      bool leftMouseButtonDown;
+      bool middleMouseButtonDown;
+      bool rightMouseButtonDown;
+      bool shiftKeyDown;
+   };
+
    struct Camera {
       Interpolator<float> m_distanceInterpolator;
       Interpolator<vec3> m_lookAtInterpolator;
@@ -46,21 +61,52 @@ namespace peasycamera {
       float m_wheelZoomScale = 1.0f;
 
       CameraState m_state;
+      CameraState m_resetState;
 
       Constraint m_dragConstraint = Constraint::None;
+      Constraint m_permaConstraint = Constraint::None;
 
       float m_viewMatrix[16];
 
       Camera(float distance, float lookAtX = 0.0f, float lookAtY = 0.0f, float lookAtZ = 0.0f);
 
       void CalculateViewMatrix();
-      void Update(bool shiftKeyDown, bool leftMouseButtonDown, bool rightMouseButtonDown, bool middleMouseButtonDown, int mouseX, int mouseY, int mouseDX, int mouseDY, int mouseWheelDelta,
-                  int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight, float deltaTimeInSeconds);
+      void Update(const Input& input);
 
       void Pan(float dx, float dy);
 
       float GetDistance() const { return m_state.m_distance; }
+      float GetWheelZoomScale() const { return m_wheelZoomScale; }
+      void GetLookAt(float* outX, float* outY, float* outZ) const { *outX = m_state.m_lookAt.x; *outY = m_state.m_lookAt.y; *outZ = m_state.m_lookAt.z; }
+      void GetPosition(float* outX, float* outY, float* outZ) const;
+      float GetMaxDistance() const { return m_maxDistance; }
+      float GetMinDistance() const { return m_minDistance; }
+
       void SetDistance(float distance, float animationTimeInSeconds = 0.0f);
+      void SetWheelZoomScale(float wheelZoomScale) { m_wheelZoomScale = wheelZoomScale; }
+      void SetLookAt(float x, float y, float z, float animationTimeInSeconds = 0.0f);
+      void SetMaxDistance(float maxDistance) { m_maxDistance = maxDistance; }
+      void SetMinDistance(float minDistance) { m_minDistance = minDistance; }
+
+      CameraState GetState() const { return m_state; }
+      void SetState(const CameraState& state, float animationTimeInSeconds = 0.0f);
+
+      void Reset(float animationTimeInSeconds = 0.0f);
+
+      void SetFreeRotationMode();
+      void SetYawRotationMode();
+      void SetPitchRotationMode();
+      void SetRollRotationMode();
+      void SetSuppressRollRotationMode();
+
+      void RotateX(float radians);
+      void RotateY(float radians);
+      void RotateZ(float radians);
+
+      void SetRotations(float rx, float ry, float rz);
+      void GetRotations(float* outRX, float* outRY, float* outRZ) const;
+
+      // @TODO: Custom impulse providers
    };
 
 }
