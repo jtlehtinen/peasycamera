@@ -47,6 +47,8 @@ HGLRC Win32CreateGLContext(HDC dc) {
    pfd.cAlphaBits = 8;
 
    int pixelFormatIndex = ChoosePixelFormat(dc, &pfd);
+   assert(pixelFormatIndex != 0);
+
    DescribePixelFormat(dc, pixelFormatIndex, sizeof(pfd), &pfd);
    SetPixelFormat(dc, pixelFormatIndex, &pfd);
 
