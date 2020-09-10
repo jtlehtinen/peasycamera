@@ -1,0 +1,8 @@
+# directories
+build
+build-temp
+.vs
+
+# files
+*.suo
+*.user
