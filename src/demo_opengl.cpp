@@ -13,6 +13,10 @@ struct Int2 {
    int x, y;
 };
 
+struct Viewport {
+   int x, y, width, height;
+};
+
 struct DigitalButton {
    bool m_down;
    bool m_press;
@@ -280,10 +284,13 @@ uint32_t CreateShaderProgram(uint32_t vertexShader, uint32_t fragmentShader) {
 }
 
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int showCode) {
+   constexpr int windowWidth = 1280;
+   constexpr int windowHeight = 720;
+
    Win32State state = { };
    state.windowPlacement.length = sizeof(WINDOWPLACEMENT);
 
-   state.window = Win32CreateWindow("peasycamera demo", 1280, 720);
+   state.window = Win32CreateWindow("peasycamera demo", windowWidth, windowHeight);
    assert(state.window);
 
    state.dc = GetDC(state.window);
@@ -314,7 +321,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
 
    glEnable(GL_DEPTH_TEST);
 
-   peasycamera::Camera camera(5.0f);
+   peasycamera::Camera cameras[4] = {peasycamera::Camera(5.0f), peasycamera::Camera(5.0f), peasycamera::Camera(5.0f), peasycamera::Camera(5.0f)};
 
    const int64_t counterFrequency = Win32GetPerfFrequency();
    int64_t lastCounter = Win32GetPerfCounter();
@@ -324,71 +331,72 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE ignored, LPSTR cmdLine, int 
       float deltaTime = float(double(currentCounter - lastCounter) / double(counterFrequency));
       lastCounter = currentCounter;
 
-      if (state.keyboard.q.m_down) {
-         camera.RotateX(deltaTime * 2.0f);
+      if (state.keyboard.r.m_down) {
+         cameras[0].Reset(0.5f);
+         cameras[1].Reset(0.5f);
+         cameras[2].Reset(0.5f);
+         cameras[3].Reset(0.5f);
       }
 
-      if (state.keyboard.w.m_down) {
-         camera.RotateY(deltaTime * 2.0f);
-      }
+      const Int2 windowSize = Win32GetClientAreaSize(state.window);
 
-      if (state.keyboard.e.m_down) {
-         camera.RotateZ(deltaTime * 2.0f);
-      }
+      const int halfWindowWidth = windowSize.x / 2;
+      const int halfWindowHeight = windowSize.y / 2;
 
-      if (state.keyboard.r.m_press) {
-         camera.Reset(0.5f);
-      }
-
-      const Int2 sz = Win32GetClientAreaSize(state.window);
-
-      peasycamera::Input input = { };
-      input.shiftKeyDown = state.keyboard.shift.m_down;
-      input.leftMouseButtonDown = state.mouse.lmb.m_down;
-      input.middleMouseButtonDown = state.mouse.mmb.m_down;
-      input.rightMouseButtonDown = state.mouse.rmb.m_down;
-      input.mouseX = state.mouse.position.x;
-      input.mouseY = state.mouse.position.y;
-      input.mouseDX = state.mouse.positionDelta.x;
-      input.mouseDY = state.mouse.positionDelta.y;
-      input.mouseWheelDelta = state.mouse.wheelDelta;
-      input.viewport[0] = 0;
-      input.viewport[1] = 0;
-      input.viewport[2] = sz.x;
-      input.viewport[3] = sz.y;
-      input.deltaTimeInSeconds = deltaTime;
-
-      camera.Update(input);
-      camera.CalculateViewMatrix();
+      Viewport viewports[4] = { };
+      viewports[0] = {0, 0, halfWindowWidth, halfWindowHeight};
+      viewports[1] = {halfWindowWidth, 0, halfWindowWidth, halfWindowHeight};
+      viewports[2] = {0, halfWindowHeight, halfWindowWidth, halfWindowHeight};
+      viewports[3] = {halfWindowWidth, halfWindowHeight, halfWindowWidth, halfWindowHeight};
 
       const float clearColor[] = {0.0f, 0.3f, 0.5f, 1.0f};
       glClearBufferfv(GL_COLOR, 0, clearColor);
 
       const float one = 1.0f;
       glClearBufferfv(GL_DEPTH, 0, &one);
-      glViewport(0, 0, sz.x, sz.y);
 
-      static float angle = 0.0f;
-      angle += DirectX::XM_PI * deltaTime;
-      DirectX::XMMATRIX localToWorldMatrix = DirectX::XMMatrixIdentity();
-      DirectX::XMMATRIX viewToProjectionMatrix = DirectX::XMMatrixPerspectiveFovRH(0.8f, float(sz.x) / float(sz.y), 0.1f, 1000.0f);
+      for (int i = 0; i < 4; ++i) {
+         peasycamera::Input input = { };
+         input.shiftKeyDown = state.keyboard.shift.m_down;
+         input.leftMouseButtonDown = state.mouse.lmb.m_down;
+         input.middleMouseButtonDown = state.mouse.mmb.m_down;
+         input.rightMouseButtonDown = state.mouse.rmb.m_down;
+         input.mouseX = state.mouse.position.x;
+         input.mouseY = windowSize.y - state.mouse.position.y;
+         input.mouseDX = state.mouse.positionDelta.x;
+         input.mouseDY = -state.mouse.positionDelta.y;
+         input.mouseWheelDelta = state.mouse.wheelDelta;
+         input.viewport[0] = viewports[i].x;
+         input.viewport[1] = viewports[i].y;
+         input.viewport[2] = viewports[i].width;
+         input.viewport[3] = viewports[i].height;
+         input.deltaTimeInSeconds = deltaTime;
 
-      DirectX::XMFLOAT4X4 uploadLocalToWorldMatrix;
-      DirectX::XMFLOAT4X4 uploadViewToProjectionMatrix;
+         cameras[i].Update(input);
+         cameras[i].CalculateViewMatrix();
 
-      DirectX::XMStoreFloat4x4(&uploadLocalToWorldMatrix, localToWorldMatrix);
-      DirectX::XMStoreFloat4x4(&uploadViewToProjectionMatrix, viewToProjectionMatrix);
+         glViewport(viewports[i].x, viewports[i].y, viewports[i].width, viewports[i].height);
 
-      glUseProgram(program);
+         DirectX::XMMATRIX localToWorldMatrix = DirectX::XMMatrixIdentity();
+         DirectX::XMMATRIX viewToProjectionMatrix = DirectX::XMMatrixPerspectiveFovRH(0.8f, float(viewports[i].width) / float(viewports[i].height), 0.1f, 1000.0f);
 
-      glUniformMatrix4fv(glGetUniformLocation(program, "u_world_from_local_matrix"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadLocalToWorldMatrix));
-      glUniformMatrix4fv(glGetUniformLocation(program, "u_view_from_world_matrix"), 1, GL_FALSE, camera.m_viewMatrix);
-      glUniformMatrix4fv(glGetUniformLocation(program, "u_projection_from_view_matrix"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadViewToProjectionMatrix));
+         DirectX::XMFLOAT4X4 uploadLocalToWorldMatrix;
+         DirectX::XMFLOAT4X4 uploadViewToProjectionMatrix;
 
-      glBindVertexArray(vao);
-      glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
-      glBindVertexArray(0);
-      glUseProgram(0);
+         DirectX::XMStoreFloat4x4(&uploadLocalToWorldMatrix, localToWorldMatrix);
+         DirectX::XMStoreFloat4x4(&uploadViewToProjectionMatrix, viewToProjectionMatrix);
+
+         glUseProgram(program);
+
+         glUniformMatrix4fv(glGetUniformLocation(program, "u_world_from_local_matrix"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadLocalToWorldMatrix));
+         glUniformMatrix4fv(glGetUniformLocation(program, "u_view_from_world_matrix"), 1, GL_FALSE, cameras[i].m_viewMatrix);
+         glUniformMatrix4fv(glGetUniformLocation(program, "u_projection_from_view_matrix"), 1, GL_FALSE, reinterpret_cast<GLfloat*>(&uploadViewToProjectionMatrix));
+
+         glBindVertexArray(vao);
+         glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
+         glBindVertexArray(0);
+         glUseProgram(0);
+      }
 
       SwapBuffers(state.dc);
    }

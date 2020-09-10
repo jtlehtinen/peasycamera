@@ -145,12 +145,12 @@ namespace peasycamera {
       }
 
       void AddMouseMoveZoomImpulse(DampedAction& zoom, int mouseDY) {
-         zoom.m_velocity += float(-mouseDY) / 10.0f;
+         zoom.m_velocity += float(mouseDY) / 10.0f;
       }
 
       void AddMouseMovePanImpulse(DampedAction& panX, DampedAction& panY, int dx, int dy) {
          panX.m_velocity += float(dx) / 8.0f;
-         panY.m_velocity += float(dy) / 8.0f;
+         panY.m_velocity += float(-dy) / 8.0f;
       }
 
       void AddMouseMoveRotateImpulse(DampedAction& rotateX, DampedAction& rotateY, DampedAction& rotateZ, Constraint constraint, float distance, int mouseX, int mouseY, int mouseDX, int mouseDY, int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight) {
@@ -169,7 +169,7 @@ namespace peasycamera {
          float myNDC = Clamp((float(mouseY) - viewY) / viewH, 0.0f, 1.0f) * 2.0f - 1.0f;
 
          if (constraint == Constraint::None || constraint == Constraint::Pitch || constraint == Constraint::SuppressRoll) {
-            rotateX.m_velocity += dmy * (1.0f - mxNDC * mxNDC);
+            rotateX.m_velocity += -dmy * (1.0f - mxNDC * mxNDC);
          }
 
          if (constraint == Constraint::None || constraint == Constraint::Yaw || constraint == Constraint::SuppressRoll) {
@@ -304,33 +304,38 @@ namespace peasycamera {
    }
 
    void Camera::Update(const Input& input) {
-      if (input.shiftKeyDown) {
-         const int dx = input.mouseDX;
-         const int dy = input.mouseDY;
+      const bool disableUserInput = (input.mouseX < input.viewport[0] || input.mouseX > input.viewport[0] + input.viewport[2]) ||
+                                    (input.mouseY < input.viewport[1] || input.mouseY > input.viewport[1] + input.viewport[3]);
 
-         if (m_dragConstraint == Constraint::None && abs(input.mouseDX - input.mouseDY) > 1) {
-            m_dragConstraint = (abs(dx) > abs(dy) ? Constraint::Yaw : Constraint::Pitch);
+      if (!disableUserInput) {
+         if (input.shiftKeyDown) {
+            const int dx = input.mouseDX;
+            const int dy = input.mouseDY;
+
+            if (m_dragConstraint == Constraint::None && abs(input.mouseDX - input.mouseDY) > 1) {
+               m_dragConstraint = (abs(dx) > abs(dy) ? Constraint::Yaw : Constraint::Pitch);
+            }
+         } else if (m_permaConstraint != Constraint::None) {
+            m_dragConstraint = m_permaConstraint;
+         } else {
+            m_dragConstraint = Constraint::None;
          }
-      } else if (m_permaConstraint != Constraint::None) {
-         m_dragConstraint = m_permaConstraint;
-      } else {
-         m_dragConstraint = Constraint::None;
-      }
       
-      if (input.mouseWheelDelta != 0) {
-         AddMouseWheelZoomImpulse(m_zoom, m_wheelZoomScale, input.mouseWheelDelta);
-      }
+         if (input.mouseWheelDelta != 0) {
+            AddMouseWheelZoomImpulse(m_zoom, m_wheelZoomScale, input.mouseWheelDelta);
+         }
 
-      if (input.rightMouseButtonDown) {
-         AddMouseMoveZoomImpulse(m_zoom, input.mouseDY);
-      }
+         if (input.rightMouseButtonDown) {
+            AddMouseMoveZoomImpulse(m_zoom, input.mouseDY);
+         }
 
-      if (input.middleMouseButtonDown) {
-         AddMouseMovePanImpulse(m_panX, m_panY, input.mouseDX, input.mouseDY);
-      }
+         if (input.middleMouseButtonDown) {
+            AddMouseMovePanImpulse(m_panX, m_panY, input.mouseDX, input.mouseDY);
+         }
 
-      if (input.leftMouseButtonDown) {
-         AddMouseMoveRotateImpulse(m_rotateX, m_rotateY, m_rotateZ, m_dragConstraint, m_state.m_distance, input.mouseX, input.mouseY, input.mouseDX, input.mouseDY, input.viewport[0], input.viewport[1], input.viewport[2], input.viewport[3]);
+         if (input.leftMouseButtonDown) {
+            AddMouseMoveRotateImpulse(m_rotateX, m_rotateY, m_rotateZ, m_dragConstraint, m_state.m_distance, input.mouseX, input.mouseY, input.mouseDX, input.mouseDY, input.viewport[0], input.viewport[1], input.viewport[2], input.viewport[3]);
+         }
       }
 
       ApplyZoomToCamera(*this);
